@@ -46,6 +46,19 @@ package and test suite.
 See [ROADMAP.md](ROADMAP.md) for the staged build plan and
 [docs/architecture.md](docs/architecture.md) for the design constraints.
 
+## Local development
+
+```bash
+npm install
+npm run check
+npm run typecheck
+npm test
+npm run build
+```
+
+Node.js 24 or newer is required. Runtime secrets and local environment files
+are intentionally excluded from version control.
+
 ## License
 
 QueueCraft is available under the [MIT License](LICENSE).
