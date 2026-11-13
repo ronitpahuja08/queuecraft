@@ -59,6 +59,22 @@ npm run build
 Node.js 24 or newer is required. Runtime secrets and local environment files
 are intentionally excluded from version control.
 
+Start the initial in-memory API with:
+
+```bash
+npm run dev
+```
+
+Then submit and inspect a job:
+
+```bash
+curl -X POST http://127.0.0.1:3000/v1/jobs \
+  -H "content-type: application/json" \
+  -d '{"queue":"emails","type":"welcome-email","payload":{"recipient":"user@example.com"}}'
+
+curl http://127.0.0.1:3000/v1/jobs/<job-id>
+```
+
 ## License
 
 QueueCraft is available under the [MIT License](LICENSE).
