@@ -61,6 +61,40 @@ describe("QueueCraft HTTP API", () => {
     expect(retrieved.job.id).toBe(created.job.id);
   });
 
+  it("controls a job lifecycle through named action routes", async () => {
+    const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ queue: "emails", type: "welcome-email" }),
+    });
+    const created = (await createdResponse.json()) as { job: { id: string } };
+
+    const started = await fetch(`${baseUrl}/v1/jobs/${created.job.id}/start`, { method: "POST" });
+    const completed = await fetch(`${baseUrl}/v1/jobs/${created.job.id}/succeed`, {
+      method: "POST",
+    });
+
+    expect(started.status).toBe(200);
+    expect(((await started.json()) as { job: { status: string } }).job.status).toBe("running");
+    expect(completed.status).toBe(200);
+    expect(((await completed.json()) as { job: { status: string } }).job.status).toBe("succeeded");
+  });
+
+  it("returns lifecycle errors with useful HTTP statuses", async () => {
+    const missing = await fetch(`${baseUrl}/v1/jobs/missing/start`, { method: "POST" });
+    expect(missing.status).toBe(404);
+
+    const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ queue: "emails", type: "welcome-email" }),
+    });
+    const created = (await createdResponse.json()) as { job: { id: string } };
+    const invalid = await fetch(`${baseUrl}/v1/jobs/${created.job.id}/succeed`, { method: "POST" });
+
+    expect(invalid.status).toBe(409);
+  });
+
   it("returns actionable errors for malformed requests", async () => {
     const response = await fetch(`${baseUrl}/v1/jobs`, {
       method: "POST",

@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
-import type { JobService } from "../application/job-service.js";
-import type { CreateJobInput } from "../domain/job.js";
+import { JobNotFoundError, type JobService } from "../application/job-service.js";
+import { type CreateJobInput, InvalidJobTransitionError, type JobCommand } from "../domain/job.js";
 import { QUEUECRAFT_VERSION } from "../version.js";
 
 const MAX_REQUEST_BYTES = 1_048_576;
@@ -11,6 +11,14 @@ export function createHttpServer(service: JobService): Server {
     try {
       await route(request, response, service);
     } catch (error) {
+      if (error instanceof JobNotFoundError) {
+        writeJson(response, 404, { error: "job not found" });
+        return;
+      }
+      if (error instanceof InvalidJobTransitionError) {
+        writeJson(response, 409, { error: error.message });
+        return;
+      }
       const message = error instanceof Error ? error.message : "unexpected error";
       writeJson(response, 400, { error: message });
     }
@@ -48,10 +56,82 @@ async function route(
     return;
   }
 
+  const actionMatch = /^\/v1\/jobs\/(?<id>[^/]+)\/(?<action>start|succeed|cancel)$/.exec(
+    url.pathname,
+  );
+  const action = actionMatch?.groups?.["action"];
+  const actionJobId = actionMatch?.groups?.["id"];
+  if (request.method === "POST" && action && actionJobId) {
+    const job = await service.transition(decodeURIComponent(actionJobId), commandForAction(action));
+    writeJson(response, 200, { job });
+    return;
+  }
+
+  const failMatch = /^\/v1\/jobs\/(?<id>[^/]+)\/fail$/.exec(url.pathname);
+  const failureJobId = failMatch?.groups?.["id"];
+  if (request.method === "POST" && failureJobId) {
+    const command = await readFailureCommand(request);
+    const job = await service.transition(decodeURIComponent(failureJobId), command);
+    writeJson(response, 200, { job });
+    return;
+  }
+
   writeJson(response, 404, { error: "route not found" });
 }
 
+function commandForAction(
+  action: string,
+): Extract<JobCommand, { readonly kind: "start" | "succeed" | "cancel" }> {
+  if (action === "start" || action === "succeed" || action === "cancel") {
+    return { kind: action };
+  }
+  throw new TypeError("unsupported job action");
+}
+
+async function readFailureCommand(request: IncomingMessage): Promise<JobCommand> {
+  const value = await readJsonBody(request);
+  const failure = value["failure"];
+  if (!isRecord(failure)) {
+    throw new TypeError("failure must be a JSON object");
+  }
+  if (
+    typeof failure["code"] !== "string" ||
+    typeof failure["message"] !== "string" ||
+    typeof failure["retryable"] !== "boolean"
+  ) {
+    throw new TypeError("failure code, message, and retryable fields are required");
+  }
+  return {
+    kind: "fail",
+    failure: {
+      code: failure["code"],
+      message: failure["message"],
+      retryable: failure["retryable"],
+    },
+  };
+}
+
 async function readJobInput(request: IncomingMessage): Promise<CreateJobInput> {
+  const value = await readJsonBody(request);
+  if (typeof value["queue"] !== "string" || typeof value["type"] !== "string") {
+    throw new TypeError("queue and type must be strings");
+  }
+  if (value["payload"] !== undefined && !isRecord(value["payload"])) {
+    throw new TypeError("payload must be a JSON object");
+  }
+  if (value["maxAttempts"] !== undefined && typeof value["maxAttempts"] !== "number") {
+    throw new TypeError("maxAttempts must be a number");
+  }
+
+  return {
+    queue: value["queue"],
+    type: value["type"],
+    ...(value["payload"] === undefined ? {} : { payload: value["payload"] }),
+    ...(value["maxAttempts"] === undefined ? {} : { maxAttempts: value["maxAttempts"] }),
+  };
+}
+
+async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const contentType = request.headers["content-type"] ?? "";
   if (!contentType.toLowerCase().startsWith("application/json")) {
     throw new TypeError("content-type must be application/json");
@@ -77,22 +157,7 @@ async function readJobInput(request: IncomingMessage): Promise<CreateJobInput> {
   if (!isRecord(value)) {
     throw new TypeError("request body must be a JSON object");
   }
-  if (typeof value["queue"] !== "string" || typeof value["type"] !== "string") {
-    throw new TypeError("queue and type must be strings");
-  }
-  if (value["payload"] !== undefined && !isRecord(value["payload"])) {
-    throw new TypeError("payload must be a JSON object");
-  }
-  if (value["maxAttempts"] !== undefined && typeof value["maxAttempts"] !== "number") {
-    throw new TypeError("maxAttempts must be a number");
-  }
-
-  return {
-    queue: value["queue"],
-    type: value["type"],
-    ...(value["payload"] === undefined ? {} : { payload: value["payload"] }),
-    ...(value["maxAttempts"] === undefined ? {} : { maxAttempts: value["maxAttempts"] }),
-  };
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
