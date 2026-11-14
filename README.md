@@ -65,7 +65,7 @@ Start the initial in-memory API with:
 npm run dev
 ```
 
-Then submit and inspect a job:
+Then submit, inspect, and control a job:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/v1/jobs \
@@ -73,7 +73,39 @@ curl -X POST http://127.0.0.1:3000/v1/jobs \
   -d '{"queue":"emails","type":"welcome-email","payload":{"recipient":"user@example.com"}}'
 
 curl http://127.0.0.1:3000/v1/jobs/<job-id>
+
+curl -X POST http://127.0.0.1:3000/v1/jobs/<job-id>/start
+curl -X POST http://127.0.0.1:3000/v1/jobs/<job-id>/succeed
 ```
+
+## Current HTTP API
+
+| Endpoint                    | Purpose                                          |
+| --------------------------- | ------------------------------------------------ |
+| `GET /health`               | Reports the local service version and readiness. |
+| `POST /v1/jobs`             | Validates and queues a job.                      |
+| `GET /v1/jobs/:id`          | Fetches a job by identifier.                     |
+| `POST /v1/jobs/:id/start`   | Moves a queued job to `running`.                 |
+| `POST /v1/jobs/:id/succeed` | Completes a running job.                         |
+| `POST /v1/jobs/:id/cancel`  | Cancels a queued or running job.                 |
+| `POST /v1/jobs/:id/fail`    | Records a failure for a running job.             |
+
+The failure route accepts a JSON body such as:
+
+```json
+{
+  "failure": {
+    "code": "provider-timeout",
+    "message": "The email provider did not respond before the deadline.",
+    "retryable": true
+  }
+}
+```
+
+Lifecycle commands are deliberately strict: an invalid state change returns
+`409 Conflict`, and unknown job identifiers return `404 Not Found`. This keeps
+job workers from silently overwriting one another while the project is still
+using its in-memory storage adapter.
 
 ## License
 
