@@ -1,5 +1,5 @@
-import type { CreateJobInput, Job, JobStatus } from "../domain/job.js";
-import { createJob } from "../domain/job.js";
+import type { CreateJobInput, Job, JobCommand, JobStatus } from "../domain/job.js";
+import { createJob, transitionJob } from "../domain/job.js";
 
 export interface JobRepository {
   save(job: Job): Promise<void>;
@@ -18,6 +18,13 @@ export interface Clock {
 
 export interface IdGenerator {
   next(): string;
+}
+
+export class JobNotFoundError extends Error {
+  public constructor(id: string) {
+    super(`job ${id} was not found`);
+    this.name = "JobNotFoundError";
+  }
 }
 
 export class JobService {
@@ -42,5 +49,16 @@ export class JobService {
 
   public list(filter?: JobListFilter): Promise<readonly Job[]> {
     return this.repository.list(filter);
+  }
+
+  public async transition(id: string, command: JobCommand): Promise<Job> {
+    const current = await this.repository.findById(id);
+    if (!current) {
+      throw new JobNotFoundError(id);
+    }
+
+    const updated = transitionJob(current, command, this.clock.now());
+    await this.repository.save(updated);
+    return updated;
   }
 }

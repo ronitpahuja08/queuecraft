@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { JobService } from "../src/application/job-service.js";
+import { JobNotFoundError, JobService } from "../src/application/job-service.js";
 import { InMemoryJobRepository } from "../src/infrastructure/in-memory-job-repository.js";
 
 describe("JobService", () => {
@@ -42,5 +42,32 @@ describe("JobService", () => {
 
     await expect(service.list({ queue: "emails" })).resolves.toEqual([first]);
     await expect(service.list({ status: "queued" })).resolves.toEqual([second, first]);
+  });
+
+  it("transitions a persisted job and saves its updated state", async () => {
+    const repository = new InMemoryJobRepository();
+    const service = new JobService(
+      repository,
+      { now: () => "2026-11-13T13:05:00Z" },
+      { next: () => "job-transition-001" },
+    );
+    const created = await service.submit({ queue: "emails", type: "welcome" });
+
+    const started = await service.transition(created.id, { kind: "start" });
+
+    expect(started).toMatchObject({ status: "running", attempts: 1, version: 2 });
+    await expect(service.findById(created.id)).resolves.toBe(started);
+  });
+
+  it("rejects commands for unknown jobs", async () => {
+    const service = new JobService(
+      new InMemoryJobRepository(),
+      { now: () => "2026-11-13T13:00:00Z" },
+      { next: () => "job-service-001" },
+    );
+
+    await expect(service.transition("missing", { kind: "start" })).rejects.toBeInstanceOf(
+      JobNotFoundError,
+    );
   });
 });
