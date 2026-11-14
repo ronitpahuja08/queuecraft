@@ -1,4 +1,4 @@
-import type { JobRepository } from "../application/job-service.js";
+import type { JobListFilter, JobRepository } from "../application/job-service.js";
 import type { Job } from "../domain/job.js";
 
 export class InMemoryJobRepository implements JobRepository {
@@ -10,5 +10,15 @@ export class InMemoryJobRepository implements JobRepository {
 
   public async findById(id: string): Promise<Job | undefined> {
     return this.#jobs.get(id);
+  }
+
+  public async list(filter: JobListFilter = {}): Promise<readonly Job[]> {
+    return [...this.#jobs.values()]
+      .filter((job) => !filter.queue || job.queue === filter.queue)
+      .filter((job) => !filter.status || job.status === filter.status)
+      .sort(
+        (left, right) =>
+          right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id),
+      );
   }
 }

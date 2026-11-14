@@ -27,4 +27,20 @@ describe("JobService", () => {
 
     await expect(service.findById("missing")).resolves.toBeUndefined();
   });
+
+  it("lists jobs by queue or status in newest-first order", async () => {
+    const repository = new InMemoryJobRepository();
+    let index = 0;
+    const service = new JobService(
+      repository,
+      { now: () => "2026-11-13T13:00:00Z" },
+      { next: () => `job-list-${++index}` },
+    );
+
+    const first = await service.submit({ queue: "emails", type: "welcome" });
+    const second = await service.submit({ queue: "reports", type: "daily" });
+
+    await expect(service.list({ queue: "emails" })).resolves.toEqual([first]);
+    await expect(service.list({ status: "queued" })).resolves.toEqual([second, first]);
+  });
 });

@@ -1,9 +1,15 @@
-import type { CreateJobInput, Job } from "../domain/job.js";
+import type { CreateJobInput, Job, JobStatus } from "../domain/job.js";
 import { createJob } from "../domain/job.js";
 
 export interface JobRepository {
   save(job: Job): Promise<void>;
   findById(id: string): Promise<Job | undefined>;
+  list(filter?: JobListFilter): Promise<readonly Job[]>;
+}
+
+export interface JobListFilter {
+  readonly queue?: string;
+  readonly status?: JobStatus;
 }
 
 export interface Clock {
@@ -32,5 +38,9 @@ export class JobService {
 
   public findById(id: string): Promise<Job | undefined> {
     return this.repository.findById(id);
+  }
+
+  public list(filter?: JobListFilter): Promise<readonly Job[]> {
+    return this.repository.list(filter);
   }
 }
