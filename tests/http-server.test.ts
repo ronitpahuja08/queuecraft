@@ -77,6 +77,15 @@ describe("QueueCraft HTTP API", () => {
     );
   });
 
+  it("rejects unsupported list filters before querying jobs", async () => {
+    const response = await fetch(`${baseUrl}/v1/jobs?status=waiting`);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "status must be one of: queued, running, succeeded, failed, cancelled",
+    });
+  });
+
   it("controls a job lifecycle through named action routes", async () => {
     const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
       method: "POST",
