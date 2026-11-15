@@ -1,7 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 import { JobNotFoundError, type JobService } from "../application/job-service.js";
-import { type CreateJobInput, InvalidJobTransitionError, type JobCommand } from "../domain/job.js";
+import {
+  type CreateJobInput,
+  InvalidJobTransitionError,
+  JOB_STATUSES,
+  type JobCommand,
+  type JobStatus,
+} from "../domain/job.js";
 import { QUEUECRAFT_VERSION } from "../version.js";
 
 const MAX_REQUEST_BYTES = 1_048_576;
@@ -44,6 +50,12 @@ async function route(
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/v1/jobs") {
+    const jobs = await service.list(readJobListFilter(url));
+    writeJson(response, 200, { jobs });
+    return;
+  }
+
   const jobMatch = /^\/v1\/jobs\/(?<id>[^/]+)$/.exec(url.pathname);
   const jobId = jobMatch?.groups?.["id"];
   if (request.method === "GET" && jobId) {
@@ -77,6 +89,18 @@ async function route(
   }
 
   writeJson(response, 404, { error: "route not found" });
+}
+
+function readJobListFilter(url: URL): { readonly queue?: string; readonly status?: JobStatus } {
+  const queue = url.searchParams.get("queue");
+  const status = url.searchParams.get("status");
+  if (status !== null && !JOB_STATUSES.includes(status as JobStatus)) {
+    throw new TypeError(`status must be one of: ${JOB_STATUSES.join(", ")}`);
+  }
+  return {
+    ...(queue === null ? {} : { queue }),
+    ...(status === null ? {} : { status: status as JobStatus }),
+  };
 }
 
 function commandForAction(

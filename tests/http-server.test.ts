@@ -61,6 +61,22 @@ describe("QueueCraft HTTP API", () => {
     expect(retrieved.job.id).toBe(created.job.id);
   });
 
+  it("lists submitted jobs through the collection endpoint", async () => {
+    await fetch(`${baseUrl}/v1/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ queue: "reports", type: "daily-report" }),
+    });
+
+    const response = await fetch(`${baseUrl}/v1/jobs?queue=reports&status=queued`);
+    const body = (await response.json()) as { jobs: Array<{ queue: string; status: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.jobs).toEqual(
+      expect.arrayContaining([expect.objectContaining({ queue: "reports", status: "queued" })]),
+    );
+  });
+
   it("controls a job lifecycle through named action routes", async () => {
     const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
       method: "POST",
