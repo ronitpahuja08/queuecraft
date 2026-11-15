@@ -84,6 +84,7 @@ curl -X POST http://127.0.0.1:3000/v1/jobs/<job-id>/succeed
 | --------------------------- | ------------------------------------------------ |
 | `GET /health`               | Reports the local service version and readiness. |
 | `POST /v1/jobs`             | Validates and queues a job.                      |
+| `GET /v1/jobs`              | Lists jobs, optionally by `queue` and `status`.  |
 | `GET /v1/jobs/:id`          | Fetches a job by identifier.                     |
 | `POST /v1/jobs/:id/start`   | Moves a queued job to `running`.                 |
 | `POST /v1/jobs/:id/succeed` | Completes a running job.                         |
@@ -106,6 +107,16 @@ Lifecycle commands are deliberately strict: an invalid state change returns
 `409 Conflict`, and unknown job identifiers return `404 Not Found`. This keeps
 job workers from silently overwriting one another while the project is still
 using its in-memory storage adapter.
+
+For example, inspect currently queued email jobs with:
+
+```bash
+curl "http://127.0.0.1:3000/v1/jobs?queue=emails&status=queued"
+```
+
+The repository also includes a pinned, read-only GitHub Actions workflow that
+runs formatting, type checks, tests, and a production build on pushes and pull
+requests.
 
 ## License
 
