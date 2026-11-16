@@ -19,6 +19,7 @@ export class InMemoryJobRepository implements JobRepository {
       .sort(
         (left, right) =>
           right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id),
-      );
+      )
+      .slice(0, filter.limit);
   }
 }

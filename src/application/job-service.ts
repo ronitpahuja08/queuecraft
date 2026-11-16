@@ -10,6 +10,7 @@ export interface JobRepository {
 export interface JobListFilter {
   readonly queue?: string;
   readonly status?: JobStatus;
+  readonly limit?: number;
 }
 
 export interface Clock {

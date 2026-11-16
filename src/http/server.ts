@@ -91,15 +91,25 @@ async function route(
   writeJson(response, 404, { error: "route not found" });
 }
 
-function readJobListFilter(url: URL): { readonly queue?: string; readonly status?: JobStatus } {
+function readJobListFilter(url: URL): {
+  readonly queue?: string;
+  readonly status?: JobStatus;
+  readonly limit?: number;
+} {
   const queue = url.searchParams.get("queue");
   const status = url.searchParams.get("status");
+  const limitValue = url.searchParams.get("limit");
   if (status !== null && !JOB_STATUSES.includes(status as JobStatus)) {
     throw new TypeError(`status must be one of: ${JOB_STATUSES.join(", ")}`);
+  }
+  const limit = limitValue === null ? undefined : Number(limitValue);
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
+    throw new RangeError("limit must be an integer between 1 and 100");
   }
   return {
     ...(queue === null ? {} : { queue }),
     ...(status === null ? {} : { status: status as JobStatus }),
+    ...(limit === undefined ? {} : { limit }),
   };
 }
 

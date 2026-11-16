@@ -86,6 +86,29 @@ describe("QueueCraft HTTP API", () => {
     });
   });
 
+  it("limits collection results with a bounded integer query parameter", async () => {
+    await Promise.all(
+      ["first", "second", "third"].map((type) =>
+        fetch(`${baseUrl}/v1/jobs`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ queue: "limited", type }),
+        }),
+      ),
+    );
+
+    const response = await fetch(`${baseUrl}/v1/jobs?queue=limited&limit=2`);
+    const body = (await response.json()) as { jobs: unknown[] };
+    const invalidLimit = await fetch(`${baseUrl}/v1/jobs?limit=0`);
+
+    expect(response.status).toBe(200);
+    expect(body.jobs).toHaveLength(2);
+    expect(invalidLimit.status).toBe(400);
+    await expect(invalidLimit.json()).resolves.toEqual({
+      error: "limit must be an integer between 1 and 100",
+    });
+  });
+
   it("controls a job lifecycle through named action routes", async () => {
     const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
       method: "POST",
