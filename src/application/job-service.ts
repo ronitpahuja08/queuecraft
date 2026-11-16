@@ -1,5 +1,12 @@
-import type { CreateJobInput, Job, JobCommand, JobStatus } from "../domain/job.js";
-import { createJob, transitionJob } from "../domain/job.js";
+import {
+  type CreateJobInput,
+  createJob,
+  JOB_STATUSES,
+  type Job,
+  type JobCommand,
+  type JobStatus,
+  transitionJob,
+} from "../domain/job.js";
 
 export interface JobRepository {
   save(job: Job): Promise<void>;
@@ -12,6 +19,8 @@ export interface JobListFilter {
   readonly status?: JobStatus;
   readonly limit?: number;
 }
+
+export type JobStatusSummary = Readonly<Record<JobStatus, number>>;
 
 export interface Clock {
   now(): string;
@@ -50,6 +59,18 @@ export class JobService {
 
   public list(filter?: JobListFilter): Promise<readonly Job[]> {
     return this.repository.list(filter);
+  }
+
+  public async summarize(filter?: Omit<JobListFilter, "limit">): Promise<JobStatusSummary> {
+    const jobs = await this.repository.list(filter);
+    const summary = Object.fromEntries(JOB_STATUSES.map((status) => [status, 0])) as Record<
+      JobStatus,
+      number
+    >;
+    for (const job of jobs) {
+      summary[job.status] += 1;
+    }
+    return Object.freeze(summary);
   }
 
   public async transition(id: string, command: JobCommand): Promise<Job> {

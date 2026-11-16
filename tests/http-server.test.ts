@@ -109,6 +109,23 @@ describe("QueueCraft HTTP API", () => {
     });
   });
 
+  it("summarizes job statuses without returning every job", async () => {
+    const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ queue: "metrics", type: "refresh" }),
+    });
+    const created = (await createdResponse.json()) as { job: { id: string } };
+    await fetch(`${baseUrl}/v1/jobs/${created.job.id}/start`, { method: "POST" });
+
+    const response = await fetch(`${baseUrl}/v1/jobs/summary?queue=metrics`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      summary: { queued: 0, running: 1, succeeded: 0, failed: 0, cancelled: 0 },
+    });
+  });
+
   it("controls a job lifecycle through named action routes", async () => {
     const createdResponse = await fetch(`${baseUrl}/v1/jobs`, {
       method: "POST",

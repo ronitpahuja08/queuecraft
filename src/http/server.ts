@@ -56,6 +56,16 @@ async function route(
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/v1/jobs/summary") {
+    const { queue, status } = readJobListFilter(url);
+    const summary = await service.summarize({
+      ...(queue === undefined ? {} : { queue }),
+      ...(status === undefined ? {} : { status }),
+    });
+    writeJson(response, 200, { summary });
+    return;
+  }
+
   const jobMatch = /^\/v1\/jobs\/(?<id>[^/]+)$/.exec(url.pathname);
   const jobId = jobMatch?.groups?.["id"];
   if (request.method === "GET" && jobId) {
